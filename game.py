@@ -4,11 +4,16 @@ import time
 from pygame.locals import *
 
 def idleAnimation(tick, potat):
-    if(tick // 4 % 4 == 3):
+    '''Rotates the Hero image to produce an idle animation
+    '''
+    if(tick // 4 % 4 == 3): #slow down the animation, only change image every 4 frames/ticks
         return pygame.transform.rotate(potat, -(tick // 4 %2))
     else:
         return pygame.transform.rotate(potat, tick // 4 % 2)
 def heroMove(presses):
+    '''Moves the Hero
+       Takes: List of Pressed Keys
+    '''
     move = [0,0]
     if(pressed[K_w] or pressed[K_UP]):
         move[1] -=6
@@ -20,9 +25,12 @@ def heroMove(presses):
         move[0] -= 6
     return move
 def inventoryMenu(background, hero):
-    invent_rects = {0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: None, 7: None}
+    '''The Inventory/Equipped items menu
+       Takes: Backround snapshot surface of the game, to draw the menu on
+    '''
     text = pygame.font.Font(None, 46)
     text.set_bold(True)
+
     hat = text.render("Hat", True, [0,0,0],[119,136,153])
     hatRect = hat.get_rect()
     hatRect.center = [1300,225]
@@ -35,9 +43,14 @@ def inventoryMenu(background, hero):
     weapon = text.render("Weapon", True, [0,0,0],[119,136,153])
     weaponRect = weapon.get_rect()
     weaponRect.center = [1100,425]
+
+    invent_rects = {0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: None, 7: None}
+
     equip_text = {0:[hat, hatRect],1:[body, bodyRect], 2:[legs, legsRect], 3:[weapon, weaponRect]}
+
     equip_slots = drawInventoryMenu(background)
     pygame.display.flip()
+
     menu = pygame.display.get_surface().copy()
     while(1):
         screen.fill([0,0,0])
@@ -46,7 +59,7 @@ def inventoryMenu(background, hero):
             if hero.inventory[i] is not None:
                 image = hero.inventory[i].image
                 rect = image.get_rect()
-                rect.center = [120 + i * 200, 550 + (i // 2) * 150]
+                rect.center = [120 + i * 200, 550 + (i // 4) * 150]
                 invent_rects[i] = rect
                 screen.blit(image, rect)
         for k in range(4):
@@ -78,6 +91,9 @@ def inventoryMenu(background, hero):
         if pressed[K_q]:
             break
 def drawInventoryMenu(snapshot):
+    '''Draws the base shapes of the Inventory menu
+       Takes: Backround snapshot of game to draw on
+    '''
     screen.blit(snapshot,[0,0])
     pygame.draw.rect(screen, [139,69,19],pygame.Rect(10,465,820,325))
     pygame.draw.rect(screen, [101,67,33],pygame.Rect(20,475,800,305))
@@ -96,6 +112,9 @@ def drawInventoryMenu(snapshot):
 
     return {0:hatSlot, 1:bodySlot, 2:legsSlot, 3:weaponSlot}
 class hero(pygame.sprite.Sprite):
+    '''Class for the player's sprite. Stores the inventory/equipment data, handles changing 
+       it's image according to equipped items
+    '''
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.original = pygame.image.load("potat.png")
@@ -113,6 +132,8 @@ class hero(pygame.sprite.Sprite):
             width, height = 137, 250   #gross hardcode, needs revision
         elif self.equip[0] and self.equip[3]:
             width, height = 160, 250
+        elif not self.equip[0] and self.equip[3]:
+            width, height = 160,177
         else:
             width, height = 137, 177
         new_surf = pygame.Surface([width, height],pygame.SRCALPHA)
@@ -120,7 +141,13 @@ class hero(pygame.sprite.Sprite):
         ori_rect.bottomright = new_surf.get_rect().bottomright
         new_surf.blit(self.original, ori_rect)
         if self.equip[0]:
-            new_surf.blit(self.equip[0].image, [0,0])
+            new_surf.blit(self.equip[0].image, [width-137,0])
+        if self.equip[1]:
+            new_surf.blit(self.equip[1].image, [width-137,height-97])
+        if self.equip[2]:
+            new_surf.blit(self.equip[2].image, [width-137,height-45])
+        if self.equip[3]:
+            new_surf.blit(self.equip[3].image, [0,height-170])
         self.image_ = new_surf
         new_rect = self.image_.get_rect()
         new_rect.bottomright = self.rect.bottomright
@@ -141,7 +168,7 @@ class hero(pygame.sprite.Sprite):
 
 class itemGenerator:
     def __init__(self):
-        self.spawns = [("starterhat.png", [900,500],0)]
+        self.spawns = [("starterhat.png", [900,500],0),("starterrobe.png", [440,400], 1),("starterlegs.png", [770,300], 2),("staff.png", [640,90], 3)]
     def spawnItem(self, itemID):
         spawn = self.spawns[itemID]
         self.image = pygame.image.load(spawn[0])
@@ -174,6 +201,9 @@ heroSprite.add(potat)
 item_spawner = itemGenerator()
 current_spawns = pygame.sprite.Group()
 current_spawns.add(item_spawner.spawnItem(0))
+current_spawns.add(item_spawner.spawnItem(1))
+current_spawns.add(item_spawner.spawnItem(2))
+current_spawns.add(item_spawner.spawnItem(3))
 
 tick = 0 
 while 1:
@@ -184,12 +214,12 @@ while 1:
     pressed = pygame.key.get_pressed()
     move = heroMove(pressed)
     item_pickups = pygame.sprite.spritecollide(potat, current_spawns, True)
-    for item in item_pickups:
-        potat.placeInInventory(item)
-    if(pressed[K_e] == True):
-        inventoryMenu(pygame.display.get_surface(), potat)
     potat.update(move)
     screen.blit(background, backrect)
     current_spawns.draw(screen)
     heroSprite.draw(screen)
     pygame.display.flip()
+    for item in item_pickups:
+        potat.placeInInventory(item)
+    if(pressed[K_e] == True):
+        inventoryMenu(pygame.display.get_surface(), potat)
