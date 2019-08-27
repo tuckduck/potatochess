@@ -15,13 +15,13 @@ def heroMove(presses):
        Takes: List of Pressed Keys
     '''
     move = [0,0]
-    if(pressed[K_w] or pressed[K_UP]):
+    if(presses[K_w] or presses[K_UP]):
         move[1] -=6
-    if(pressed[K_s] or pressed[K_DOWN]):
+    if(presses[K_s] or presses[K_DOWN]):
         move[1] +=6
-    if(pressed[K_d] or pressed[K_RIGHT]):
+    if(presses[K_d] or presses[K_RIGHT]):
         move[0] += 6
-    if(pressed[K_a] or pressed[K_LEFT]):
+    if(presses[K_a] or presses[K_LEFT]):
         move[0] -= 6
     return move
 def inventoryMenu(background, hero):
@@ -175,8 +175,10 @@ class itemGenerator:
         self.rect = self.image.get_rect()
         self.rect.move_ip(spawn[1][0],spawn[1][1])
         itemObj = item(self.image, self.rect,itemID,spawn[2])
-                    
         return itemObj
+    def spawnItems(self, itemIDs, itemSpriteGroup):
+        for item in itemIDs:
+            itemSpriteGroup.add(self.spawnItem(item)) 
 
 class item(pygame.sprite.Sprite):
     def __init__(self, image_, rect_,itemID,itemType):
@@ -185,41 +187,45 @@ class item(pygame.sprite.Sprite):
         self.image = image_
         self.rect = rect_
         self.itemID = itemID
+
+def level(background, heroSprite, potat, item_spawner, screen):
+    background = pygame.image.load(background)
+    backrect = background.get_rect()
+    current_spawns = pygame.sprite.Group()
+    item_spawner.spawnItems([0,1,2,3], current_spawns)
+    tick = 0 
+    while 1:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: sys.exit()
+        potat.image = idleAnimation(tick, potat.image_)
+        tick += 1
+        pressed = pygame.key.get_pressed()
+        move = heroMove(pressed)
+        item_pickups = pygame.sprite.spritecollide(potat, current_spawns, True)
+        potat.update(move)
+        screen.blit(background, backrect)
+        current_spawns.draw(screen)
+        heroSprite.draw(screen)
+        pygame.display.flip()
+        for item in item_pickups:
+            potat.placeInInventory(item)
+        if(pressed[K_e] == True):
+            inventoryMenu(pygame.display.get_surface(), potat)
+def setup():
+    os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (1,31)
+    size = width, height = 1400, 800
+
+    screen = pygame.display.set_mode(size)
+
+    potat = hero()
+    heroSprite = pygame.sprite.GroupSingle()
+    heroSprite.add(potat)
+
+    item_spawner = itemGenerator()
+    return screen, potat, heroSprite, item_spawner
+
 pygame.init()
-os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (1,31)
-size = width, height = 1400, 800
-
-screen = pygame.display.set_mode(size)
-
-background = pygame.image.load("forestbackround.png")
-backrect = background.get_rect()
-
-potat = hero()
-heroSprite = pygame.sprite.GroupSingle()
-heroSprite.add(potat)
-
-item_spawner = itemGenerator()
+screen, potat, heroSprite, item_spawner = setup()
 current_spawns = pygame.sprite.Group()
-current_spawns.add(item_spawner.spawnItem(0))
-current_spawns.add(item_spawner.spawnItem(1))
-current_spawns.add(item_spawner.spawnItem(2))
-current_spawns.add(item_spawner.spawnItem(3))
 
-tick = 0 
-while 1:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT: sys.exit()
-    potat.image = idleAnimation(tick, potat.image_)
-    tick += 1
-    pressed = pygame.key.get_pressed()
-    move = heroMove(pressed)
-    item_pickups = pygame.sprite.spritecollide(potat, current_spawns, True)
-    potat.update(move)
-    screen.blit(background, backrect)
-    current_spawns.draw(screen)
-    heroSprite.draw(screen)
-    pygame.display.flip()
-    for item in item_pickups:
-        potat.placeInInventory(item)
-    if(pressed[K_e] == True):
-        inventoryMenu(pygame.display.get_surface(), potat)
+level("forestbackround.png", heroSprite, potat, item_spawner, screen)
