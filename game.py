@@ -7,9 +7,9 @@ def idleAnimation(tick, potat):
     '''Rotates the Hero image to produce an idle animation
     '''
     if(tick // 4 % 4 == 3): #slow down the animation, only change image every 4 frames/ticks
-        return pygame.transform.rotate(potat, -(tick // 4 %2))
+        return pygame.transform.rotate(potat, -(tick // 8 %2))
     else:
-        return pygame.transform.rotate(potat, tick // 4 % 2)
+        return pygame.transform.rotate(potat, tick // 8 % 2)
 def heroMove(presses):
     '''Moves the Hero
        Takes: List of Pressed Keys
@@ -111,6 +111,24 @@ def drawInventoryMenu(snapshot):
     hatSlot = pygame.draw.rect(screen, [119,136,153],pygame.Rect(1225,150,150,150))
 
     return {0:hatSlot, 1:bodySlot, 2:legsSlot, 3:weaponSlot}
+
+class enemyGenerator:
+    def __init__(self):
+        self.spawns = [[0, "Tomato.png"]]
+    def spawnEnemy(self, enemyId, location):
+        return enemy(self.spawns[enemyId], location)
+    def spawnEnemies(self, enemySpriteGroup, spawnLocations):
+        for location in spawnLocations:
+            enemySpriteGroup.add(self.spawnEnemy(0, [750,200])) 
+
+class enemy(pygame.sprite.Sprite):
+    def __init__(self, vector, location):
+        pygame.sprite.Sprite.__init__(self)
+        self.enemyId = vector[0]
+        self.image = pygame.image.load(vector[1])
+        self.rect = self.image.get_rect()
+        self.rect.move_ip(location[0], location[1])
+
 class hero(pygame.sprite.Sprite):
     '''Class for the player's sprite. Stores the inventory/equipment data, handles changing 
        it's image according to equipped items
@@ -171,10 +189,10 @@ class itemGenerator:
         self.spawns = [("starterhat.png", [900,500],0),("starterrobe.png", [440,400], 1),("starterlegs.png", [770,300], 2),("staff.png", [640,90], 3)]
     def spawnItem(self, itemID):
         spawn = self.spawns[itemID]
-        self.image = pygame.image.load(spawn[0])
-        self.rect = self.image.get_rect()
-        self.rect.move_ip(spawn[1][0],spawn[1][1])
-        itemObj = item(self.image, self.rect,itemID,spawn[2])
+        image = pygame.image.load(spawn[0])
+        rect = image.get_rect()
+        rect.move_ip(spawn[1][0],spawn[1][1])
+        itemObj = item(image, rect,itemID,spawn[2])
         return itemObj
     def spawnItems(self, itemIDs, itemSpriteGroup):
         for item in itemIDs:
@@ -188,11 +206,16 @@ class item(pygame.sprite.Sprite):
         self.rect = rect_
         self.itemID = itemID
 
-def level(background, heroSprite, potat, item_spawner, screen):
+def level(background, heroSprite, potat, item_spawner, enemy_spawner, screen):
     background = pygame.image.load(background)
     backrect = background.get_rect()
-    current_spawns = pygame.sprite.Group()
-    item_spawner.spawnItems([0,1,2,3], current_spawns)
+    current_item_spawns = pygame.sprite.Group()
+    current_enemy_spawns = pygame.sprite.Group()
+    enemy_spawn_locs = [0]
+
+    enemy_spawner.spawnEnemies(current_enemy_spawns, enemy_spawn_locs)
+    item_spawner.spawnItems([0,1,2,3], current_item_spawns) #spawns all 4 items
+
     tick = 0 
     while 1:
         for event in pygame.event.get():
@@ -201,16 +224,23 @@ def level(background, heroSprite, potat, item_spawner, screen):
         tick += 1
         pressed = pygame.key.get_pressed()
         move = heroMove(pressed)
-        item_pickups = pygame.sprite.spritecollide(potat, current_spawns, True)
+        fights = pygame.sprite.spritecollide(potat, current_enemy_spawns, True)
+        for enemy in fights:
+            battle(pygame.display.get_surface(), potat, enemy)
+        item_pickups = pygame.sprite.spritecollide(potat, current_item_spawns, True)
         potat.update(move)
         screen.blit(background, backrect)
-        current_spawns.draw(screen)
+        current_item_spawns.draw(screen)
+        current_enemy_spawns.draw(screen)
         heroSprite.draw(screen)
         pygame.display.flip()
+        
         for item in item_pickups:
             potat.placeInInventory(item)
         if(pressed[K_e] == True):
             inventoryMenu(pygame.display.get_surface(), potat)
+        #if tick is 200:
+         #   battle(pygame.display.get_surface(), potat, "enemy")
 def setup():
     os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (1,31)
     size = width, height = 1400, 800
@@ -222,10 +252,66 @@ def setup():
     heroSprite.add(potat)
 
     item_spawner = itemGenerator()
-    return screen, potat, heroSprite, item_spawner
+    enemy_spawner = enemyGenerator()
+    return screen, potat, heroSprite, item_spawner, enemy_spawner
 
+def battleStartup(background, potat_img, enemy_img):
+    setting = pygame.image.load("forestBattle.png")
+    black = pygame.Surface([1400, 800])
+    black.set_alpha(100)
+    shaded = background.copy()
+    shaded.blit(black, [0,0])
+    black.set_alpha(170)
+    for i in range(6):
+        screen.blit(black, [0,0])
+        time.sleep(.2)
+        pygame.display.flip()
+        screen.blit(shaded, [0,0])
+        time.sleep(.2)
+        pygame.display.flip()
+    screen.blit(black, [0,0])
+    time.sleep(.2)
+    pygame.display.flip()
+    black.set_alpha(200)
+    screen.blit(black, [0,0])
+    time.sleep(.2)
+    pygame.display.flip()
+    black.set_alpha(100)
+    screen.blit(setting, [0,0])
+    screen.blit(black, [0,0])
+    time.sleep(.2)
+    pygame.display.flip()
+    clock = pygame.time.Clock()
+    for i in range(0, 1400, 20):
+        screen.blits([(setting, [0,0]), (potat_img, [i-200,500]), (enemy_img, [1400-i, 200])])
+        
+        
+        pygame.display.flip()
+        clock.tick(35)
+        #print(i)
+    screen.blits([(setting, [0,0]), (potat_img, [1200,500]), (enemy_img, [0, 200])])
+    i = 0
+    while(i < 1000000):
+        i += 1
+        
+    
+
+def battle(background, potat, enemy):
+    snapshot = background.copy()
+    platform = pygame.image.load("grass3.png")
+    hero_surf = createBattleSprite(potat, platform)
+    enemy_surf = createBattleSprite(enemy, platform)
+    battleStartup(snapshot, hero_surf, enemy_surf)
+def createBattleSprite(character, platform):
+    width, height = character.rect.width, character.rect.width
+    battle_surf = pygame.Surface([220, character.image.get_height()+20],pygame.SRCALPHA)
+    battle_surf.blit(platform, [0,battle_surf.get_height()-60])
+    offset = (220-width) / 2
+    battle_surf.blit(character.image, [offset, 0])
+    return battle_surf
 pygame.init()
-screen, potat, heroSprite, item_spawner = setup()
-current_spawns = pygame.sprite.Group()
+screen, potat, heroSprite, item_spawner, enemy_spawner = setup()
+current_item_spawns = pygame.sprite.Group()
 
-level("forestbackround.png", heroSprite, potat, item_spawner, screen)
+#level("dirtbackround.png", heroSprite, potat, item_spawner, screen)
+level("forestbackround.png", heroSprite, potat, item_spawner, enemy_spawner, screen)
